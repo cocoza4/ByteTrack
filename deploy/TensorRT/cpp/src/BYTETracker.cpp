@@ -1,8 +1,9 @@
 #include "BYTETracker.h"
 #include <fstream>
 
-BYTETracker::BYTETracker(int frame_rate, int track_buffer)
+BYTETracker::BYTETracker(int id_, int frame_rate, int track_buffer)
 {
+	id = id_;
 	track_thresh = 0.5;
 	high_thresh = 0.6;
 	match_thresh = 0.8;
