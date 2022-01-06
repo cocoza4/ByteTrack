@@ -66,7 +66,7 @@ batch-size=1
 network-mode=1
 interval=0
 gie-unique-id=1
-output-blob-names=output_0
+output-blob-names=output
 #scaling-filter=0
 #scaling-compute-hw=0
 
