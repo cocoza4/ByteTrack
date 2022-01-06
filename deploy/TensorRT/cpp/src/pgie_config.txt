@@ -60,13 +60,13 @@
 [property]
 gpu-id=0
 net-scale-factor=0.0039215697906911373
-model-engine-file=/workspace/sertis/ByteTrack/YOLOX_outputs/yolox_s_mix_det/model_trt.engine
-force-implicit-batch-dim=1
-batch-size=1
+model-engine-file=/workspace/sertis/ByteTrack/deploy/TensorRT/models/bytetrack_s_b2.engine
+#force-implicit-batch-dim=1
+batch-size=2
 network-mode=1
 interval=0
 gie-unique-id=1
-output-blob-names=output_0
+output-blob-names=output
 #scaling-filter=0
 #scaling-compute-hw=0
 
