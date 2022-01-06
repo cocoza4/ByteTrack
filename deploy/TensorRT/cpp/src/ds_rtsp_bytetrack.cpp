@@ -390,7 +390,7 @@ static void add_obj_meta_to_frame(const vector<STrack>& output_stracks, NvDsInfe
  * iterate & parse the tensor data to get detection bounding boxes. The result
  * would be attached as object-meta(NvDsObjectMeta) into the same frame metadata.
  */
-static GstPadProbeReturn tiler_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data) {
+static GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data) {
 	static guint use_device_mem = 0;
 	// const auto trackers = static_cast<std::vector<BYTETracker *> *>(u_data);
 
@@ -464,57 +464,43 @@ static GstPadProbeReturn tiler_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo
 	return GST_PAD_PROBE_OK;
 }
 
-static GstPadProbeReturn demuxer_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data) {
+static GstPadProbeReturn summary_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data) {
 	static guint use_device_mem = 0;
 	// const auto trackers = static_cast<std::vector<BYTETracker *> *>(u_data);
 
 	CustomData *data = (CustomData *)u_data;
 	NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta(GST_BUFFER(info->data));
 
-	/* Iterate each frame metadata in batch */
-	int batch = 0;
-	for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
-		batch++;
-		NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
-		int img_width = frame_meta->source_frame_width;
-		int img_height = frame_meta->source_frame_height;
+	// TODO: display dataf from BYTETracker
 
-		// nvds_clear_obj_meta_list(frame_meta, frame_meta->obj_meta_list);
-		// auto *tracker = trackers->at(frame_meta->source_id);
-		// const auto& tracker = (*trackers)[frame_meta->source_id];
-		g_print("DEBUG: batch_id: %d, source_id: %d, num_obj_meta: %d\n", frame_meta->batch_id, frame_meta->source_id, frame_meta->num_obj_meta);
+	// /* Iterate each frame metadata in batch */
+	// int batch = 0;
+	// for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
+	// 	batch++;
+	// 	NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
+	// 	int img_width = frame_meta->source_frame_width;
+	// 	int img_height = frame_meta->source_frame_height;
 
-		for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
-				NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
-				// if (obj_meta->class_id == 0) {
-				// 	vehicle_count++;
-				// 	num_rects++;
-				// }
-				// if (obj_meta->class_id == PGIE_CLASS_ID_PERSON) {
-				// 	person_count++;
-				// 	num_rects++;
-				// }
-		}
+	// 	// nvds_clear_obj_meta_list(frame_meta, frame_meta->obj_meta_list);
+	// 	// auto *tracker = trackers->at(frame_meta->source_id);
+	// 	// const auto& tracker = (*trackers)[frame_meta->source_id];
+	// 	g_print("xxxxxxxxxxx DEBUG: batch_id: %d, source_id: %d, num_obj_meta: %d\n", frame_meta->batch_id, frame_meta->source_id, frame_meta->num_obj_meta);
 
-		// // TODO: change to array, use 1 or 2 sources for debugging only
-		// BYTETracker *tracker = NULL;
-		// int src_id = frame_meta->source_id;
-		// if (src_id == 0) {
-		// 	tracker = data->tracker1;
-		// } else if (src_id == 1) {
-		// 	tracker = data->tracker2;
-		// } else {
-		// 	g_printerr("ERROR: not supported\n");
-		// }
-		/* Iterate user metadata in frames to search PGIE's tensor metadata */
-		// for (NvDsMetaList *l_user = frame_meta->frame_user_meta_list; l_user != NULL; l_user = l_user->next) {
-		// 	NvDsUserMeta *user_meta = (NvDsUserMeta *)l_user->data;
+	// 	for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
+	// 			NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
+	// 			// if (obj_meta->class_id == 0) {
+	// 			// 	vehicle_count++;
+	// 			// 	num_rects++;
+	// 			// }
+	// 			// if (obj_meta->class_id == PGIE_CLASS_ID_PERSON) {
+	// 			// 	person_count++;
+	// 			// 	num_rects++;
+	// 			// }
+	// 	}
+	// }
 
-		// }
-	}
-
-	std::cout << "batch=" << batch << std::endl;
-	use_device_mem = 1 - use_device_mem;
+	// std::cout << "batch=" << batch << std::endl;
+	// use_device_mem = 1 - use_device_mem;
 	return GST_PAD_PROBE_OK;
 }
 
@@ -599,41 +585,8 @@ static GstElement* create_source_bin(guint index, const gchar* uri) {
   return bin;
 }
 
-void run(const std::vector<std::string>& sources, const bool display) {
-	cudaSetDevice(DEVICE);
-
-	GstBus *bus;
-	GMainLoop *main_loop;
-	guint bus_watch_id;
-
-	GstElement *pipeline = NULL, *queue1, *queue2, *queue3, *queue4, *queue5,
-						 *streammux = NULL, *sink = NULL, *pgie = NULL, *nvvidconv = NULL,
-						 *nvosd = NULL, *tiler = NULL;
-
-  GstPad *tiler_src_pad = NULL;
-  guint tiler_rows, tiler_columns;
-  int current_device = -1, pgie_batch_size = 1;
-  int num_sources = sources.size();
-  cudaGetDevice(&current_device);
-  struct cudaDeviceProp prop;
-  cudaGetDeviceProperties(&prop, current_device);
-
-	/* Initialize GStreamer */
-	main_loop = g_main_loop_new(NULL, FALSE);
-
-	/* Create gstreamer elements */
-	/* Create Pipeline element that will form a connection of other elements */
-	pipeline = gst_pipeline_new("people-tracking-pipeline");
-
-  /* Create nvstreammux instance to form batches from one or more sources. */
-  streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
-
-  if (!pipeline || !streammux) {
-		throw std::runtime_error("One element could not be created. Exiting.");
-  }
-  gst_bin_add(GST_BIN(pipeline), streammux);
-
-  for (int i = 0; i < num_sources; i++) {
+void create_multi_source_bin(GstElement *pipeline, GstElement *streammux, const std::vector<std::string>& sources) {
+	for (int i = 0; i < sources.size(); i++) {
     GstPad *sinkpad, *srcpad;
     GstElement *source_bin = create_source_bin(i, sources[i].c_str());
 
@@ -660,25 +613,43 @@ void run(const std::vector<std::string>& sources, const bool display) {
     gst_object_unref(srcpad);
     gst_object_unref(sinkpad);
   }
+}
+
+void run(const std::vector<std::string>& sources, const bool display) {
+	cudaSetDevice(DEVICE);
+
+	GstBus *bus;
+	GMainLoop *main_loop;
+	guint bus_watch_id;
+
+	GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL;
+
+  int current_device = -1, pgie_batch_size = 1;
+  int num_sources = sources.size();
+  cudaGetDevice(&current_device);
+  struct cudaDeviceProp prop;
+  cudaGetDeviceProperties(&prop, current_device);
+
+	/* Initialize GStreamer */
+	main_loop = g_main_loop_new(NULL, FALSE);
+
+	/* Create gstreamer elements */
+	/* Create Pipeline element that will form a connection of other elements */
+	pipeline = gst_pipeline_new("people-tracking-pipeline");
+
+  /* Create nvstreammux instance to form batches from one or more sources. */
+  streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
+
+  if (!pipeline || !streammux) {
+		throw std::runtime_error("One element could not be created");
+  }
+  gst_bin_add(GST_BIN(pipeline), streammux);
+
+  create_multi_source_bin(pipeline, streammux, sources);
 
   pgie = gst_element_factory_make("nvinfer", "primary-nvinference-engine");
-
-  /* Add queue elements between every two elements */
-  queue1 = gst_element_factory_make ("queue", "queue1");
-  queue2 = gst_element_factory_make ("queue", "queue2");
-  queue3 = gst_element_factory_make ("queue", "queue3");
-  queue4 = gst_element_factory_make ("queue", "queue4");
-
-	/* Use convertor to convert from NV12 to RGBA as required by nvosd */
-	nvvidconv = gst_element_factory_make("nvvideoconvert", "nvvideo-converter");
-
-	/* Create OSD to draw on the converted RGBA buffer */
-	nvosd = gst_element_factory_make("nvdsosd", "nv-onscreendisplay");
-
-	sink = gst_element_factory_make("nveglglessink", "nvvideo-renderer");
-
-	if (!pgie || !nvvidconv || !nvosd || !sink) {
-		throw std::runtime_error("One element could not be created. Exiting.\n");
+	if (!pgie) {
+		throw std::runtime_error("nvinfer element could not be created");
 	}
 
   g_object_set(G_OBJECT(streammux), "batch-size", num_sources, NULL);
@@ -708,11 +679,6 @@ void run(const std::vector<std::string>& sources, const bool display) {
     g_object_set(G_OBJECT(pgie), "batch-size", num_sources, NULL);
   }
 
-  // g_object_set (G_OBJECT (nvosd), "process-mode", OSD_PROCESS_MODE,
-  //     "display-text", OSD_DISPLAY_TEXT, NULL);
-
-  g_object_set(G_OBJECT(sink), "qos", 0, NULL);
-
 	/* we add a message handler */
 	bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
 	bus_watch_id = gst_bus_add_watch(bus, bus_call, main_loop);
@@ -729,48 +695,86 @@ void run(const std::vector<std::string>& sources, const bool display) {
 	// 	trackers.emplace_back(tracker);
   // }
 
+	/* Add probes */
+	GstPad *pgie_src_pad = gst_element_get_static_pad(pgie, "src");
+	if (!pgie_src_pad)
+		g_print("Unable to get src pad\n");
+	else {
+		gst_pad_add_probe(pgie_src_pad, GST_PAD_PROBE_TYPE_BUFFER,
+				pgie_src_pad_buffer_probe, &data, NULL);
+	}
+	gst_object_unref(pgie_src_pad);
+
 	/* Use nvtiler to composite the batched frames into a 2D tiled array based
    * on the source of the frames. */
 	if (display) {
-		queue5 = gst_element_factory_make ("queue", "queue5");
-  	tiler = gst_element_factory_make("nvmultistreamtiler", "nvtiler");
-		tiler_rows = (guint) sqrt (num_sources);
-		tiler_columns = (guint) ceil (1.0 * num_sources / tiler_rows);
+		/* Use convertor to convert from NV12 to RGBA as required by nvosd */
+		GstElement *nvvidconv = gst_element_factory_make("nvvideoconvert", "nvvideo-converter");
+
+		/* Create OSD to draw on the converted RGBA buffer */
+		GstElement *nvosd = gst_element_factory_make("nvdsosd", "nv-onscreendisplay");
+
+		GstElement *sink = gst_element_factory_make("nveglglessink", "nvvideo-renderer");
+
+		if (!nvvidconv || !nvosd || !sink) {
+			throw std::runtime_error("One element could not be created. Exiting.\n");
+		}
+
+		// g_object_set (G_OBJECT (nvosd), "process-mode", OSD_PROCESS_MODE,
+  	//     "display-text", OSD_DISPLAY_TEXT, NULL);
+  	g_object_set(G_OBJECT(sink), "qos", 0, NULL);
+
+		/* Add queue elements between every two elements */
+		GstElement *queue1 = gst_element_factory_make ("queue", "queue1");
+		GstElement *queue2 = gst_element_factory_make ("queue", "queue2");
+		GstElement *queue3 = gst_element_factory_make ("queue", "queue3");
+		GstElement *queue4 = gst_element_factory_make ("queue", "queue4");
+		GstElement *queue5 = gst_element_factory_make ("queue", "queue5");
+
+		GstElement *tiler = gst_element_factory_make("nvmultistreamtiler", "nvtiler");
+		guint tiler_rows = (guint)sqrt(num_sources);
+		guint tiler_columns = (guint)ceil(1.0 * num_sources / tiler_rows);
 
 		/* we set the tiler properties here */
 		g_object_set(G_OBJECT(tiler), "rows", tiler_rows, "columns", tiler_columns,
 				"width", TILED_OUTPUT_WIDTH, "height", TILED_OUTPUT_HEIGHT, NULL);
 
 		gst_bin_add_many(GST_BIN(pipeline), queue1, pgie, queue2, tiler, queue3,
-      nvvidconv, queue4, nvosd, queue5, sink, NULL);
+			nvvidconv, queue4, nvosd, queue5, sink, NULL);
 
 		/* we link the elements together
 		* nvstreammux -> nvinfer -> nvtiler -> nvvidconv -> nvosd -> video-renderer */
-		if (!gst_element_link_many (streammux, queue1, pgie, queue2, tiler, queue3,
+		if (!gst_element_link_many(streammux, queue1, pgie, queue2, tiler, queue3,
 					nvvidconv, queue4, nvosd, queue5, sink, NULL)) {
 			throw std::runtime_error("Elements could not be linked");
 		}
 
-		/* Add probes */
-		tiler_src_pad = gst_element_get_static_pad(pgie, "src");
-		if (!tiler_src_pad)
-			g_print("Unable to get src pad\n");
-		else {
-			gst_pad_add_probe (tiler_src_pad, GST_PAD_PROBE_TYPE_BUFFER,
-					tiler_src_pad_buffer_probe, &data, NULL);
-		}
-		gst_object_unref(tiler_src_pad);
-		
 	} else {
-		GstElement *streamdemux = NULL;
-		streamdemux = gst_element_factory_make("nvstreamdemux", "stream-demuxer");
+
+		GstElement *queue1 = gst_element_factory_make ("queue", "queue1");
+		GstElement *queue2 = gst_element_factory_make ("queue", "queue2");
+		// GstPad *osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
+
+		// gst_bin_add_many(GST_BIN(pipeline), queue1, pgie, queue2, streamdemux, NULL);
+
+		// /* Lets add probe to get informed of the meta data generated, we add probe to
+		// 	* the sink pad of the osd element, since by that time, the buffer would have
+		// 	* had got all the metadata. */
+		
+	  // if (!osd_sink_pad)
+	  //   g_print ("Unable to get sink pad\n");
+	  // else
+	  //   gst_pad_add_probe (osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+	  //       summary_src_pad_buffer_probe, NULL, NULL);
+	  // gst_object_unref(osd_sink_pad);
+		
+
+		GstElement *streamdemux = gst_element_factory_make("nvstreamdemux", "stream-demuxer");
 
 		if (!streamdemux) {
 			throw std::runtime_error("streamdemux element could not be created");
 		}
 
-		// gst_bin_add(GST_BIN(pipeline->pipeline), pipeline->demuxer);
-		
 		gst_bin_add_many(GST_BIN(pipeline), queue1, pgie, queue2, streamdemux, NULL);
 
 		/* we link the elements together
@@ -780,17 +784,15 @@ void run(const std::vector<std::string>& sources, const bool display) {
 		}
 
 		/* Add probes */
-		GstPad *demux_src_pad = NULL;
-		demux_src_pad = gst_element_get_static_pad(streamdemux, "sink");
-		if (!demux_src_pad)
-			throw std::runtime_error("xxxxxxxxxxxxUnable to get src pad\n");
+		GstPad *demux_sink_pad = gst_element_get_static_pad(streamdemux, "sink");
+		if (!demux_sink_pad)
+			throw std::runtime_error("Unable to get src pad\n");
 		else {
 			g_print("add demuxer probe\n");
-			gst_pad_add_probe(demux_src_pad, GST_PAD_PROBE_TYPE_BUFFER,
-					demuxer_sink_pad_buffer_probe, &data, NULL);
+			gst_pad_add_probe(demux_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+					summary_src_pad_buffer_probe, &data, NULL);
 		}
-		gst_object_unref(demux_src_pad);
-
+		gst_object_unref(demux_sink_pad);
 	}
 
   /* Lets add probe to get informed of the meta data generated, we add probe to
@@ -805,17 +807,7 @@ void run(const std::vector<std::string>& sources, const bool display) {
 
 	
 
-	/* Lets add probe to get informed of the meta data generated, we add probe to
-   * the sink pad of the osd element, since by that time, the buffer would have
-   * had got all the metadata. */
-		// GstPad *osd_sink_pad = NULL;
-	  // osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
-	  // if (!osd_sink_pad)
-	  //   g_print ("Unable to get sink pad\n");
-	  // else
-	  //   gst_pad_add_probe (osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-	  //       osd_sink_pad_buffer_probe, NULL, NULL);
-	  // gst_object_unref(osd_sink_pad);
+	
 
 
   /* Set the pipeline to "playing" state */
