@@ -467,40 +467,42 @@ static GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo 
 static GstPadProbeReturn summary_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data) {
 	static guint use_device_mem = 0;
 	// const auto trackers = static_cast<std::vector<BYTETracker *> *>(u_data);
-
+	g_print("In summary_src_pad_buffer_probe");
 	CustomData *data = (CustomData *)u_data;
 	NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta(GST_BUFFER(info->data));
 
 	// TODO: display dataf from BYTETracker
 
-	// /* Iterate each frame metadata in batch */
-	// int batch = 0;
-	// for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
-	// 	batch++;
-	// 	NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
-	// 	int img_width = frame_meta->source_frame_width;
-	// 	int img_height = frame_meta->source_frame_height;
+	/* Iterate each frame metadata in batch */
+	g_print("------------------------------------\n");
+	int batch = 0;
+	for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
+		batch++;
+		NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
+		int img_width = frame_meta->source_frame_width;
+		int img_height = frame_meta->source_frame_height;
 
-	// 	// nvds_clear_obj_meta_list(frame_meta, frame_meta->obj_meta_list);
-	// 	// auto *tracker = trackers->at(frame_meta->source_id);
-	// 	// const auto& tracker = (*trackers)[frame_meta->source_id];
-	// 	g_print("xxxxxxxxxxx DEBUG: batch_id: %d, source_id: %d, num_obj_meta: %d\n", frame_meta->batch_id, frame_meta->source_id, frame_meta->num_obj_meta);
+		// nvds_clear_obj_meta_list(frame_meta, frame_meta->obj_meta_list);
+		// auto *tracker = trackers->at(frame_meta->source_id);
+		// const auto& tracker = (*trackers)[frame_meta->source_id];
+		
+		g_print("xxxxxxxxxxx DEBUG: batch_id: %d, source_id: %d, num_obj_meta: %d\n", frame_meta->batch_id, frame_meta->source_id, frame_meta->num_obj_meta);
+		for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
+				NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
+				// if (obj_meta->class_id == 0) {
+				// 	vehicle_count++;
+				// 	num_rects++;
+				// }
+				// if (obj_meta->class_id == PGIE_CLASS_ID_PERSON) {
+				// 	person_count++;
+				// 	num_rects++;
+				// }
+		}
+	}
 
-	// 	for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
-	// 			NvDsObjectMeta *obj_meta = (NvDsObjectMeta *)(l_obj->data);
-	// 			// if (obj_meta->class_id == 0) {
-	// 			// 	vehicle_count++;
-	// 			// 	num_rects++;
-	// 			// }
-	// 			// if (obj_meta->class_id == PGIE_CLASS_ID_PERSON) {
-	// 			// 	person_count++;
-	// 			// 	num_rects++;
-	// 			// }
-	// 	}
-	// }
+	std::cout << "batch=" << batch << std::endl;
+	g_print("------------------------------------\n");
 
-	// std::cout << "batch=" << batch << std::endl;
-	// use_device_mem = 1 - use_device_mem;
 	return GST_PAD_PROBE_OK;
 }
 
@@ -532,11 +534,11 @@ static void cb_newpad(GstElement * decodebin, GstPad * decoder_src_pad, gpointer
   }
 }
 
-static void decodebin_child_added (GstChildProxy * child_proxy, GObject * object,
-    gchar *name, gpointer user_data)
+static void decodebin_child_added (GstChildProxy *child_proxy, GObject *object,
+																	 gchar *name, gpointer user_data)
 {
-  g_print ("Decodebin child added: %s\n", name);
-  if (g_strrstr (name, "decodebin") == name) {
+  // g_print("Decodebin child added: %s\n", name);
+  if (g_strrstr(name, "decodebin") == name) {
     g_signal_connect (G_OBJECT (object), "child-added",
         G_CALLBACK (decodebin_child_added), user_data);
   }
@@ -564,21 +566,21 @@ static GstElement* create_source_bin(guint index, const gchar* uri) {
 
   /* Connect to the "pad-added" signal of the decodebin which generates a
    * callback once a new pad for raw data has beed created by the decodebin */
-  g_signal_connect (G_OBJECT (uri_decode_bin), "pad-added",
-      G_CALLBACK (cb_newpad), bin);
-  g_signal_connect (G_OBJECT (uri_decode_bin), "child-added",
-      G_CALLBACK (decodebin_child_added), bin);
+  g_signal_connect(G_OBJECT (uri_decode_bin), "pad-added",
+      G_CALLBACK(cb_newpad), bin);
+  g_signal_connect(G_OBJECT(uri_decode_bin), "child-added",
+      G_CALLBACK(decodebin_child_added), bin);
 
-  gst_bin_add(GST_BIN (bin), uri_decode_bin);
+  gst_bin_add(GST_BIN(bin), uri_decode_bin);
 
   /* We need to create a ghost pad for the source bin which will act as a proxy
    * for the video decoder src pad. The ghost pad will not have a target right
    * now. Once the decode bin creates the video decoder and generates the
    * cb_newpad callback, we will set the ghost pad target to the video decoder
    * src pad. */
-  if (!gst_element_add_pad (bin, gst_ghost_pad_new_no_target ("src",
+  if (!gst_element_add_pad(bin, gst_ghost_pad_new_no_target ("src",
               GST_PAD_SRC))) {
-    g_printerr ("Failed to add ghost pad in source bin\n");
+    g_printerr("Failed to add ghost pad in source bin\n");
     return NULL;
   }
 
@@ -698,7 +700,7 @@ void run(const std::vector<std::string>& sources, const bool display) {
 	/* Add probes */
 	GstPad *pgie_src_pad = gst_element_get_static_pad(pgie, "src");
 	if (!pgie_src_pad)
-		g_print("Unable to get src pad\n");
+		throw std::runtime_error("Unable to get pgie src pad");
 	else {
 		gst_pad_add_probe(pgie_src_pad, GST_PAD_PROBE_TYPE_BUFFER,
 				pgie_src_pad_buffer_probe, &data, NULL);
@@ -717,7 +719,7 @@ void run(const std::vector<std::string>& sources, const bool display) {
 		GstElement *sink = gst_element_factory_make("nveglglessink", "nvvideo-renderer");
 
 		if (!nvvidconv || !nvosd || !sink) {
-			throw std::runtime_error("One element could not be created. Exiting.\n");
+			throw std::runtime_error("One element could not be created");
 		}
 
 		// g_object_set (G_OBJECT (nvosd), "process-mode", OSD_PROCESS_MODE,
@@ -743,7 +745,7 @@ void run(const std::vector<std::string>& sources, const bool display) {
 			nvvidconv, queue4, nvosd, queue5, sink, NULL);
 
 		/* we link the elements together
-		* nvstreammux -> nvinfer -> nvtiler -> nvvidconv -> nvosd -> video-renderer */
+		 * nvstreammux -> nvinfer -> nvtiler -> nvvidconv -> nvosd -> video-renderer */
 		if (!gst_element_link_many(streammux, queue1, pgie, queue2, tiler, queue3,
 					nvvidconv, queue4, nvosd, queue5, sink, NULL)) {
 			throw std::runtime_error("Elements could not be linked");
@@ -753,22 +755,6 @@ void run(const std::vector<std::string>& sources, const bool display) {
 
 		GstElement *queue1 = gst_element_factory_make ("queue", "queue1");
 		GstElement *queue2 = gst_element_factory_make ("queue", "queue2");
-		// GstPad *osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
-
-		// gst_bin_add_many(GST_BIN(pipeline), queue1, pgie, queue2, streamdemux, NULL);
-
-		// /* Lets add probe to get informed of the meta data generated, we add probe to
-		// 	* the sink pad of the osd element, since by that time, the buffer would have
-		// 	* had got all the metadata. */
-		
-	  // if (!osd_sink_pad)
-	  //   g_print ("Unable to get sink pad\n");
-	  // else
-	  //   gst_pad_add_probe (osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-	  //       summary_src_pad_buffer_probe, NULL, NULL);
-	  // gst_object_unref(osd_sink_pad);
-		
-
 		GstElement *streamdemux = gst_element_factory_make("nvstreamdemux", "stream-demuxer");
 
 		if (!streamdemux) {
@@ -778,21 +764,21 @@ void run(const std::vector<std::string>& sources, const bool display) {
 		gst_bin_add_many(GST_BIN(pipeline), queue1, pgie, queue2, streamdemux, NULL);
 
 		/* we link the elements together
-		* nvstreammux -> nvinfer -> nvtiler -> nvvidconv -> nvosd -> video-renderer */
+		 * nvstreammux -> nvinfer -> nvtiler -> nvvidconv -> nvosd -> video-renderer */
 		if (!gst_element_link_many(streammux, queue1, pgie, queue2, streamdemux, NULL)) {
 			throw std::runtime_error("Elements could not be linked");
 		}
 
-		/* Add probes */
-		GstPad *demux_sink_pad = gst_element_get_static_pad(streamdemux, "sink");
-		if (!demux_sink_pad)
-			throw std::runtime_error("Unable to get src pad\n");
-		else {
-			g_print("add demuxer probe\n");
-			gst_pad_add_probe(demux_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-					summary_src_pad_buffer_probe, &data, NULL);
-		}
-		gst_object_unref(demux_sink_pad);
+	// 	/* Add probes */
+	// 	GstPad *demux_sink_pad = gst_element_get_static_pad(streamdemux, "sink");
+	// 	if (!demux_sink_pad)
+	// 		throw std::runtime_error("Unable to get src pad");
+	// 	else {
+	// 		g_print("add demuxer probe");
+	// 		gst_pad_add_probe(demux_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+	// 				summary_src_pad_buffer_probe, &data, NULL);
+	// 	}
+	// 	gst_object_unref(demux_sink_pad);
 	}
 
   /* Lets add probe to get informed of the meta data generated, we add probe to
@@ -805,18 +791,13 @@ void run(const std::vector<std::string>& sources, const bool display) {
 	// 	trackers.emplace_back(std::move(tracker));
   // }
 
-	
-
-	
-
-
   /* Set the pipeline to "playing" state */
   g_print("Now processing:");
   for (auto& source : sources) {
     g_print(" %s,", source.c_str());
   }
-  g_print ("\n");
-  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  g_print("\n");
+  gst_element_set_state(pipeline, GST_STATE_PLAYING);
 
 	/* Wait till pipeline encounters an error or EOS */
 	g_print("Running...\n");

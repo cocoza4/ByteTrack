@@ -34,16 +34,12 @@ include_directories(/opt/nvidia/deepstream/deepstream/sources/includes)
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-# file(GLOB My_Source_Files ${PROJECT_SOURCE_DIR}/src/*.cpp)
 set(COMMON_FILES src/BYTETracker.cpp;src/kalmanFilter.cpp;src/lapjv.cpp;src/STrack.cpp;src/utils.cpp)
 add_library(common STATIC ${COMMON_FILES})
 set(COMMON_LIBS common;cudart;${OpenCV_LIBS};${GST_APP_LIBRARIES};${GST_VIDEO_LIBRARIES};${Boost_LIBRARIES})
 
 add_executable(bytetrack src/bytetrack.cpp)
 target_link_libraries(bytetrack PRIVATE ${COMMON_LIBS} nvinfer)
-
-# add_executable(ds_bytetrack src/ds_bytetrack.cpp)
-# target_link_libraries(ds_bytetrack PRIVATE ${COMMON_LIBS} nvds_meta nvdsgst_meta)
 
 add_executable(ds_rtsp_bytetrack src/ds_rtsp_bytetrack.cpp)
 target_link_libraries(ds_rtsp_bytetrack PRIVATE ${COMMON_LIBS} nvds_meta nvdsgst_meta)
